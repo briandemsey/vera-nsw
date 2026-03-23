@@ -93,9 +93,9 @@ def compute_risk_score(school: dict) -> float:
     Risk Score = (LBOTE% / 100) * (FOEI / 200) * (1 - ICSEA/1200)
     Normalized to 0-100 scale.
     """
-    lbote = safe_float(school.get("lbote_pct", 0))
-    foei = safe_float(school.get("foei", 0))
-    icsea = safe_float(school.get("icsea_value", 1000))
+    lbote = safe_float(school.get("LBOTE_pct", 0))
+    foei = safe_float(school.get("FOEI_Value", 0))
+    icsea = safe_float(school.get("ICSEA_value", 1000))
 
     # Normalize components
     lbote_factor = min(lbote / 100, 1.0)
@@ -136,25 +136,25 @@ def list_nsw_schools(
     for school in schools:
         # School type filter
         if school_type:
-            st = school.get("school_subtype", "").lower()
+            st = school.get("School_subtype", "").lower() if school.get("School_subtype") else ""
             if school_type.lower() not in st:
                 continue
 
         # Enrollment filter
         if min_enrollment:
-            enrollment = safe_float(school.get("enrolment", 0))
+            enrollment = safe_float(school.get("latest_year_enrolment_FTE", 0))
             if enrollment < min_enrollment:
                 continue
 
         # LBOTE filter
         if min_lbote_pct:
-            lbote = safe_float(school.get("lbote_pct", 0))
+            lbote = safe_float(school.get("LBOTE_pct", 0))
             if lbote < min_lbote_pct:
                 continue
 
         # Suburb filter
         if suburb:
-            school_suburb = school.get("suburb", "").lower()
+            school_suburb = school.get("Town_suburb", "").lower() if school.get("Town_suburb") else ""
             if suburb.lower() not in school_suburb:
                 continue
 
@@ -162,18 +162,18 @@ def list_nsw_schools(
         risk_score = compute_risk_score(school)
 
         filtered.append({
-            "school_code": school.get("school_code"),
-            "school_name": school.get("school_name"),
-            "school_type": school.get("school_subtype"),
-            "suburb": school.get("suburb"),
-            "postcode": school.get("postcode"),
-            "enrollment": safe_float(school.get("enrolment", 0)),
-            "icsea": safe_float(school.get("icsea_value", 0)),
-            "foei": safe_float(school.get("foei", 0)),
-            "lbote_pct": safe_float(school.get("lbote_pct", 0)),
-            "indigenous_pct": safe_float(school.get("indigenous_pct", 0)),
-            "remoteness": school.get("asgs_remoteness"),
-            "lga": school.get("lga_name"),
+            "school_code": school.get("School_code"),
+            "school_name": school.get("School_name"),
+            "school_type": school.get("School_subtype"),
+            "suburb": school.get("Town_suburb"),
+            "postcode": school.get("Postcode"),
+            "enrollment": safe_float(school.get("latest_year_enrolment_FTE", 0)),
+            "icsea": safe_float(school.get("ICSEA_value", 0)),
+            "foei": safe_float(school.get("FOEI_Value", 0)),
+            "lbote_pct": safe_float(school.get("LBOTE_pct", 0)),
+            "indigenous_pct": safe_float(school.get("Indigenous_pct", 0)),
+            "remoteness": school.get("ASGS_remoteness"),
+            "lga": school.get("LGA"),
             "risk_score": risk_score
         })
 
@@ -214,10 +214,10 @@ def compute_lbote_risk_profile(
     total_foei_above = 0
 
     for school in schools:
-        lbote = safe_float(school.get("lbote_pct", 0))
-        foei = safe_float(school.get("foei", 0))
-        icsea = safe_float(school.get("icsea_value", 1000))
-        enrollment = safe_float(school.get("enrolment", 0))
+        lbote = safe_float(school.get("LBOTE_pct", 0))
+        foei = safe_float(school.get("FOEI_Value", 0))
+        icsea = safe_float(school.get("ICSEA_value", 1000))
+        enrollment = safe_float(school.get("latest_year_enrolment_FTE", 0))
 
         if lbote >= min_lbote_pct:
             total_lbote_above += 1
@@ -227,17 +227,17 @@ def compute_lbote_risk_profile(
         if lbote >= min_lbote_pct and foei >= min_foei:
             risk_score = compute_risk_score(school)
             high_risk.append({
-                "school_code": school.get("school_code"),
-                "school_name": school.get("school_name"),
-                "school_type": school.get("school_subtype"),
-                "suburb": school.get("suburb"),
-                "lga": school.get("lga_name"),
+                "school_code": school.get("School_code"),
+                "school_name": school.get("School_name"),
+                "school_type": school.get("School_subtype"),
+                "suburb": school.get("Town_suburb"),
+                "lga": school.get("LGA"),
                 "enrollment": enrollment,
                 "lbote_pct": lbote,
                 "foei": foei,
                 "icsea": icsea,
                 "risk_score": risk_score,
-                "students_at_risk": int(enrollment * (lbote / 100))
+                "students_at_risk": int(enrollment * (lbote / 100)) if lbote > 0 else 0
             })
 
     # Sort by risk score
@@ -299,18 +299,18 @@ def flag_intervention_gap_schools(
     for school in schools:
         # Apply school type filter
         if school_type:
-            st = school.get("school_subtype", "").lower()
+            st = school.get("School_subtype", "").lower() if school.get("School_subtype") else ""
             if school_type.lower() not in st:
                 continue
 
         risk_score = compute_risk_score(school)
 
         if risk_score >= risk_threshold:
-            lbote = safe_float(school.get("lbote_pct", 0))
-            foei = safe_float(school.get("foei", 0))
-            icsea = safe_float(school.get("icsea_value", 1000))
-            enrollment = safe_float(school.get("enrolment", 0))
-            indigenous = safe_float(school.get("indigenous_pct", 0))
+            lbote = safe_float(school.get("LBOTE_pct", 0))
+            foei = safe_float(school.get("FOEI_Value", 0))
+            icsea = safe_float(school.get("ICSEA_value", 1000))
+            enrollment = safe_float(school.get("latest_year_enrolment_FTE", 0))
+            indigenous = safe_float(school.get("Indigenous_pct", 0))
 
             # Determine gap type
             gap_factors = []
@@ -324,13 +324,13 @@ def flag_intervention_gap_schools(
                 gap_factors.append("High Indigenous")
 
             flagged.append({
-                "school_code": school.get("school_code"),
-                "school_name": school.get("school_name"),
-                "school_type": school.get("school_subtype"),
-                "suburb": school.get("suburb"),
-                "postcode": school.get("postcode"),
-                "lga": school.get("lga_name"),
-                "remoteness": school.get("asgs_remoteness"),
+                "school_code": school.get("School_code"),
+                "school_name": school.get("School_name"),
+                "school_type": school.get("School_subtype"),
+                "suburb": school.get("Town_suburb"),
+                "postcode": school.get("Postcode"),
+                "lga": school.get("LGA"),
+                "remoteness": school.get("ASGS_remoteness"),
                 "enrollment": int(enrollment),
                 "lbote_pct": lbote,
                 "indigenous_pct": indigenous,
@@ -338,7 +338,7 @@ def flag_intervention_gap_schools(
                 "icsea": icsea,
                 "risk_score": risk_score,
                 "gap_factors": gap_factors,
-                "estimated_at_risk_students": int(enrollment * (lbote / 100))
+                "estimated_at_risk_students": int(enrollment * (lbote / 100)) if lbote > 0 else 0
             })
 
     # Sort by risk score descending

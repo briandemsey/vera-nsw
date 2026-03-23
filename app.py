@@ -170,9 +170,9 @@ def safe_float(value, default=0.0):
 
 def compute_risk_score(row):
     """Compute equity risk score for a school."""
-    lbote = safe_float(row.get("lbote_pct", 0))
-    foei = safe_float(row.get("foei", 0))
-    icsea = safe_float(row.get("icsea_value", 1000))
+    lbote = safe_float(row.get("LBOTE_pct", 0))
+    foei = safe_float(row.get("FOEI_Value", 0))
+    icsea = safe_float(row.get("ICSEA_value", 1000))
 
     lbote_factor = min(lbote / 100, 1.0)
     foei_factor = min(foei / 200, 1.0)
@@ -187,26 +187,26 @@ def prepare_dataframe(schools):
     records = []
     for school in schools:
         risk_score = compute_risk_score(school)
-        enrollment = safe_float(school.get("enrolment", 0))
-        lbote = safe_float(school.get("lbote_pct", 0))
+        enrollment = safe_float(school.get("latest_year_enrolment_FTE", 0))
+        lbote = safe_float(school.get("LBOTE_pct", 0))
 
         records.append({
-            "school_code": school.get("school_code"),
-            "school_name": school.get("school_name"),
-            "school_type": school.get("school_subtype"),
-            "suburb": school.get("suburb"),
-            "postcode": school.get("postcode"),
-            "lga": school.get("lga_name"),
-            "remoteness": school.get("asgs_remoteness"),
+            "school_code": school.get("School_code"),
+            "school_name": school.get("School_name"),
+            "school_type": school.get("School_subtype"),
+            "suburb": school.get("Town_suburb"),
+            "postcode": school.get("Postcode"),
+            "lga": school.get("LGA"),
+            "remoteness": school.get("ASGS_remoteness"),
             "enrollment": enrollment,
-            "icsea": safe_float(school.get("icsea_value", 0)),
-            "foei": safe_float(school.get("foei", 0)),
+            "icsea": safe_float(school.get("ICSEA_value", 0)),
+            "foei": safe_float(school.get("FOEI_Value", 0)),
             "lbote_pct": lbote,
-            "indigenous_pct": safe_float(school.get("indigenous_pct", 0)),
+            "indigenous_pct": safe_float(school.get("Indigenous_pct", 0)),
             "risk_score": risk_score,
-            "students_at_risk": int(enrollment * (lbote / 100)),
-            "latitude": safe_float(school.get("latitude", 0)),
-            "longitude": safe_float(school.get("longitude", 0))
+            "students_at_risk": int(enrollment * (lbote / 100)) if lbote > 0 else 0,
+            "latitude": safe_float(school.get("Latitude", 0)),
+            "longitude": safe_float(school.get("Longitude", 0))
         })
 
     return pd.DataFrame(records)
