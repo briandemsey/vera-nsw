@@ -234,36 +234,37 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    # Footer with gold accent box
+    # Gold divider bar
     st.markdown(f"""
         <div style="
-            background: linear-gradient(135deg, {GOLD}, #D4AF37);
-            border-radius: 12px;
-            padding: 20px 15px;
-            margin-top: 30px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        ">
-            <img src="app/static/vera_logo.png" style="width: 80%; max-width: 180px; margin-bottom: 12px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));" onerror="this.style.display='none'">
-            <p style="color: {NAVY}; font-size: 1.3rem; font-weight: 700; margin: 8px 0 4px 0; text-shadow: none;">
-                VERA-NSW v0.1
-            </p>
-            <p style="color: {NAVY}; font-size: 0.85rem; margin: 0; opacity: 0.8;">
-                Verification Engine for Results & Accountability
-            </p>
-            <a href="https://data.nsw.gov.au" target="_blank" style="
-                display: inline-block;
-                color: {NAVY};
-                font-size: 0.9rem;
-                font-weight: 600;
-                margin-top: 10px;
-                text-decoration: underline;
-            ">Data.NSW Open Data</a>
-        </div>
+            height: 4px;
+            background: linear-gradient(90deg, {GOLD}, #D4AF37, {GOLD});
+            margin: 30px 0 20px 0;
+            border-radius: 2px;
+        "></div>
     """, unsafe_allow_html=True)
 
-    # Also show logo via st.image as fallback
+    # VERA logo
     st.image("vera_logo.png", use_container_width=True)
+
+    # Version and attribution - bright gold text
+    st.markdown(f"""
+        <p style="color: {GOLD}; font-size: 1.4rem; font-weight: 700; text-align: center; margin: 12px 0 6px 0; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+            VERA-NSW v0.1
+        </p>
+        <p style="color: white; font-size: 0.9rem; text-align: center; margin: 0 0 12px 0;">
+            Verification Engine for<br>Results & Accountability
+        </p>
+        <p style="text-align: center;">
+            <a href="https://data.nsw.gov.au" target="_blank" style="
+                color: {GOLD};
+                font-size: 1rem;
+                font-weight: 600;
+                text-decoration: none;
+                border-bottom: 2px solid {GOLD};
+            ">Data.NSW Open Data</a>
+        </p>
+    """, unsafe_allow_html=True)
 
 
 # =============================================================================
