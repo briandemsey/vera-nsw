@@ -236,12 +236,17 @@ with st.sidebar:
 
     st.markdown("---")
 
-    st.markdown(f"""
-        <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; text-align: center;">
-            VERA-NSW v0.1<br>
-            Data: <a href="https://data.nsw.gov.au" style="color: {GOLD};">Data.NSW</a>
-        </p>
-    """, unsafe_allow_html=True)
+    # VERA logo and version
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.image("vera_logo.png", width=60)
+    with col2:
+        st.markdown(f"""
+            <p style="color: rgba(255,255,255,0.7); font-size: 0.75rem; margin-top: 10px;">
+                VERA-NSW v0.1<br>
+                <a href="https://data.nsw.gov.au" style="color: {GOLD}; font-size: 0.7rem;">Data.NSW</a>
+            </p>
+        """, unsafe_allow_html=True)
 
 
 # =============================================================================
