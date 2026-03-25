@@ -232,7 +232,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigate",
-        ["📊 School Dashboard", "🔍 LBOTE Risk Analysis", "🚩 Intervention Gaps", "📝 Student Record", "📅 Daily Observations", "ℹ️ About VERA-NSW"],
+        ["📊 School Dashboard", "🔍 LBOTE Risk Analysis", "🚩 Intervention Gaps", "🏫 Admin Dashboard", "📝 Student Record", "📅 Daily Observations", "ℹ️ About VERA-NSW"],
         label_visibility="collapsed"
     )
 
@@ -501,6 +501,345 @@ elif page == "🚩 Intervention Gaps":
     csv = flagged.to_csv(index=False)
     st.download_button("Download Flagged Schools CSV", csv, "vera_nsw_flagged.csv", "text/csv")
 
+
+# =============================================================================
+# Page: Admin Dashboard
+# =============================================================================
+
+elif page == "🏫 Admin Dashboard":
+    st.title("School Administrator Dashboard")
+    st.markdown("*Compliance monitoring, observation aggregates, and intervention tracking*")
+
+    # Database path
+    db_path = Path(__file__).parent / "vera_nsw.db"
+
+    # Initialize data containers
+    init_summary = None
+    obs_summary = None
+    intervention_summary = None
+    teacher_summary = None
+    concern_students = None
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+
+        # Overall initialization record summary
+        init_df = pd.read_sql_query("""
+            SELECT
+                COUNT(*) as total_records,
+                SUM(CASE WHEN locked_at IS NOT NULL THEN 1 ELSE 0 END) as locked_records,
+                SUM(CASE WHEN teacher_response = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
+                SUM(CASE WHEN teacher_response = 'challenged' THEN 1 ELSE 0 END) as challenged,
+                SUM(CASE WHEN teacher_response = 'modified' THEN 1 ELSE 0 END) as modified,
+                COUNT(DISTINCT teacher_id) as teachers_participating
+            FROM initialization_records
+        """, conn)
+        if len(init_df) > 0:
+            init_summary = init_df.iloc[0].to_dict()
+
+        # Overall observation summary
+        obs_df = pd.read_sql_query("""
+            SELECT
+                COUNT(DISTINCT student_id) as unique_students,
+                COUNT(DISTINCT teacher_id) as teachers_observing,
+                COUNT(DISTINCT observation_date) as observation_days,
+                COUNT(*) as total_observations,
+                SUM(present) as total_present,
+                SUM(oral_participation) as total_oral,
+                SUM(written_output) as total_written,
+                SUM(engaged) as total_engaged,
+                SUM(concern_flag) as total_concerns,
+                SUM(absent) as total_absent
+            FROM observations
+        """, conn)
+        if len(obs_df) > 0:
+            obs_summary = obs_df.iloc[0].to_dict()
+
+        # Intervention effectiveness
+        interv_df = pd.read_sql_query("""
+            SELECT
+                SUM(CASE WHEN elaboration = 'Intervention responding' THEN 1 ELSE 0 END) as responding,
+                SUM(CASE WHEN elaboration = 'Intervention not responding' THEN 1 ELSE 0 END) as not_responding,
+                SUM(CASE WHEN elaboration = 'VERA hypothesis confirmed' THEN 1 ELSE 0 END) as vera_confirmed,
+                SUM(CASE WHEN elaboration = 'VERA hypothesis challenged' THEN 1 ELSE 0 END) as vera_challenged
+            FROM observations
+        """, conn)
+        if len(interv_df) > 0:
+            intervention_summary = interv_df.iloc[0].to_dict()
+
+        # Teacher activity summary
+        teacher_df = pd.read_sql_query("""
+            SELECT
+                teacher_id,
+                COUNT(DISTINCT observation_date) as days_observed,
+                COUNT(DISTINCT student_id) as students_observed,
+                COUNT(*) as total_entries
+            FROM observations
+            GROUP BY teacher_id
+            ORDER BY days_observed DESC
+        """, conn)
+        teacher_summary = teacher_df
+
+        # Students with unresolved concerns
+        concern_df = pd.read_sql_query("""
+            SELECT
+                student_id,
+                COUNT(*) as concern_count,
+                MAX(observation_date) as last_concern_date,
+                GROUP_CONCAT(DISTINCT note) as notes
+            FROM observations
+            WHERE concern_flag = 1
+            GROUP BY student_id
+            ORDER BY concern_count DESC
+            LIMIT 10
+        """, conn)
+        concern_students = concern_df
+
+        conn.close()
+    except Exception as e:
+        st.info("Database not yet initialized. Complete some observations to populate the dashboard.")
+
+    # Section 1: Compliance Overview
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {NAVY}; color: white; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="color: {GOLD}; margin: 0;">Compliance Status</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        locked = init_summary.get('locked_records', 0) if init_summary else 0
+        total = init_summary.get('total_records', 0) if init_summary else 0
+        compliance_rate = (locked / total * 100) if total > 0 else 0
+        st.markdown(f"""
+            <div class="stat-card">
+                <div class="value" style="color: {GREEN if compliance_rate >= 90 else (GOLD if compliance_rate >= 50 else RED)};">{compliance_rate:.0f}%</div>
+                <div class="label">Document 1 Completion</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        teachers = init_summary.get('teachers_participating', 0) if init_summary else 0
+        st.markdown(f"""
+            <div class="stat-card">
+                <div class="value">{teachers}</div>
+                <div class="label">Teachers Participating</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        locked_count = init_summary.get('locked_records', 0) if init_summary else 0
+        st.markdown(f"""
+            <div class="stat-card">
+                <div class="value">{locked_count}</div>
+                <div class="label">Records Locked (Day 1)</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        challenged = init_summary.get('challenged', 0) if init_summary else 0
+        st.markdown(f"""
+            <div class="stat-card">
+                <div class="value">{challenged}</div>
+                <div class="label">VERA Hypotheses Challenged</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # Teacher response breakdown
+    if init_summary and init_summary.get('total_records', 0) > 0:
+        st.markdown("**Teacher Responses to VERA Hypothesis:**")
+        resp_cols = st.columns(3)
+        with resp_cols[0]:
+            st.metric("Confirmed", int(init_summary.get('confirmed', 0) or 0))
+        with resp_cols[1]:
+            st.metric("Modified", int(init_summary.get('modified', 0) or 0))
+        with resp_cols[2]:
+            st.metric("Challenged", int(init_summary.get('challenged', 0) or 0))
+
+    # Section 2: Observation Analytics
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {NAVY}; color: white; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="color: {GOLD}; margin: 0;">Daily Observation Analytics</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if obs_summary and obs_summary.get('total_observations', 0) > 0:
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        with col1:
+            st.metric("Students Observed", int(obs_summary.get('unique_students', 0) or 0))
+        with col2:
+            st.metric("Observation Days", int(obs_summary.get('observation_days', 0) or 0))
+        with col3:
+            st.metric("Total Observations", int(obs_summary.get('total_observations', 0) or 0))
+        with col4:
+            st.metric("Active Teachers", int(obs_summary.get('teachers_observing', 0) or 0))
+        with col5:
+            concerns = int(obs_summary.get('total_concerns', 0) or 0)
+            st.metric("Concern Flags", concerns, delta="review" if concerns > 0 else None, delta_color="inverse")
+
+        # Participation pattern analysis
+        st.markdown("---")
+        st.markdown("**Participation Patterns (School-Wide)**")
+
+        total_present = obs_summary.get('total_present', 0) or 1
+        oral_rate = (obs_summary.get('total_oral', 0) or 0) / total_present * 100
+        written_rate = (obs_summary.get('total_written', 0) or 0) / total_present * 100
+        engaged_rate = (obs_summary.get('total_engaged', 0) or 0) / total_present * 100
+
+        pattern_cols = st.columns(4)
+        with pattern_cols[0]:
+            attendance = (obs_summary.get('total_present', 0) or 0) / (obs_summary.get('total_observations', 1) or 1) * 100
+            st.metric("Attendance Rate", f"{attendance:.0f}%")
+        with pattern_cols[1]:
+            st.metric("Oral Participation", f"{oral_rate:.0f}%")
+        with pattern_cols[2]:
+            st.metric("Written Output", f"{written_rate:.0f}%")
+        with pattern_cols[3]:
+            st.metric("Engagement", f"{engaged_rate:.0f}%")
+
+        # Pattern alert
+        if oral_rate > written_rate + 15:
+            st.warning(f"⚠️ **School Pattern Alert:** Oral participation ({oral_rate:.0f}%) exceeds written output ({written_rate:.0f}%) by >15% — consistent with LBOTE risk indicators.")
+
+        # Visualization
+        if oral_rate + written_rate + engaged_rate > 0:
+            fig = go.Figure(data=[
+                go.Bar(name='Oral', x=['Participation Type'], y=[oral_rate], marker_color=GOLD),
+                go.Bar(name='Written', x=['Participation Type'], y=[written_rate], marker_color=NAVY),
+                go.Bar(name='Engaged', x=['Participation Type'], y=[engaged_rate], marker_color=GREEN)
+            ])
+            fig.update_layout(
+                barmode='group',
+                yaxis_title='Percentage of Present Students',
+                height=300,
+                showlegend=True
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No observation data yet. Teachers will begin entering daily observations after completing Document 1.")
+
+    # Section 3: Intervention Effectiveness
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {NAVY}; color: white; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="color: {GOLD}; margin: 0;">Intervention Effectiveness</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if intervention_summary:
+        responding = int(intervention_summary.get('responding', 0) or 0)
+        not_responding = int(intervention_summary.get('not_responding', 0) or 0)
+        total_interv = responding + not_responding
+
+        if total_interv > 0:
+            effectiveness_rate = (responding / total_interv) * 100
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                color = GREEN if effectiveness_rate >= 70 else (GOLD if effectiveness_rate >= 50 else RED)
+                st.markdown(f"""
+                    <div class="stat-card">
+                        <div class="value" style="color: {color};">{effectiveness_rate:.0f}%</div>
+                        <div class="label">Effectiveness Rate</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                st.metric("Responding", responding)
+            with col3:
+                st.metric("Not Responding", not_responding)
+            with col4:
+                vera_conf = int(intervention_summary.get('vera_confirmed', 0) or 0)
+                st.metric("VERA Confirmed", vera_conf)
+
+            # Effectiveness gauge
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=effectiveness_rate,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                title={'text': "Intervention Effectiveness"},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': GOLD},
+                    'steps': [
+                        {'range': [0, 50], 'color': '#FADBD8'},
+                        {'range': [50, 70], 'color': '#FCF3CF'},
+                        {'range': [70, 100], 'color': '#D5F5E3'}
+                    ]
+                }
+            ))
+            fig.update_layout(height=250)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No intervention effectiveness data yet. Teachers will mark intervention responses during daily observations.")
+    else:
+        st.info("No intervention data available.")
+
+    # Section 4: Students Needing Attention
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {NAVY}; color: white; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="color: {GOLD}; margin: 0;">Students Needing Attention</h3>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if concern_students is not None and len(concern_students) > 0:
+        st.markdown("*Students with multiple concern flags — may require intervention review*")
+
+        display_df = concern_students.copy()
+        display_df.columns = ['Student ID', 'Concern Count', 'Last Flagged', 'Notes']
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+    else:
+        st.success("No students currently flagged with repeated concerns.")
+
+    # Section 5: Teacher Participation (Aggregate)
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {NAVY}; color: white; padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <h3 style="color: {GOLD}; margin: 0;">Teacher Participation Summary</h3>
+            <p style="margin: 4px 0 0 0; opacity: 0.7; font-size: 0.85rem;">Aggregate data only — not used for teacher evaluation</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if teacher_summary is not None and len(teacher_summary) > 0:
+        col1, col2 = st.columns([1, 2])
+
+        with col1:
+            st.metric("Total Teachers Observing", len(teacher_summary))
+            avg_days = teacher_summary['days_observed'].mean()
+            st.metric("Avg Days per Teacher", f"{avg_days:.1f}")
+            avg_students = teacher_summary['students_observed'].mean()
+            st.metric("Avg Students per Teacher", f"{avg_students:.0f}")
+
+        with col2:
+            # Participation histogram
+            fig = px.histogram(
+                teacher_summary,
+                x='days_observed',
+                nbins=10,
+                title='Distribution of Observation Days per Teacher',
+                labels={'days_observed': 'Days Observed', 'count': 'Number of Teachers'}
+            )
+            fig.update_layout(height=250, showlegend=False)
+            fig.update_traces(marker_color=NAVY)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No teacher observation data yet.")
+
+    # Non-evaluation guarantee
+    st.markdown("---")
+    st.markdown(f"""
+        <div style="background: {GREEN}; color: white; padding: 16px; border-radius: 4px; text-align: center;">
+            <strong>NON-EVALUATION GUARANTEE</strong><br>
+            No teacher identity is attached to any result in this dashboard.<br>
+            VERA measures whether <em>policy</em> works, not whether <em>teachers</em> work.
+        </div>
+    """, unsafe_allow_html=True)
 
 # =============================================================================
 # Page: About
